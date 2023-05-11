@@ -6,7 +6,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(
         description='Compresses file using DEFLATE')
-    parser.add_argument('filename', type=str)
+    parser.add_argument('filename', type=str, required=True)
     args = vars(parser.parse_args())
     compresser = Compresser()
     with BitStreamReader(args['filename']) as reader:
