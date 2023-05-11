@@ -1,6 +1,7 @@
 from BitStream import BitStreamReader, BitStreamWriter
 from Compresser import Compresser
 import argparse
+import sys
 
 
 def main():
@@ -14,6 +15,7 @@ def main():
         with BitStreamWriter(f'{name}.gz') as writer:
             compresser.compress_file(reader, writer, args['filename'])
     print('OK')
+    sys.exit(0)
 
 
 if __name__ == '__main__':
