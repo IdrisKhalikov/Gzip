@@ -37,7 +37,7 @@ class BitStreamWriter:
 
     def add_up(self):
         if self._buffer_length > 0:
-            self.write(0, 8-self._buffer_length)
+            self.write(0x00, 8-self._buffer_length)
 
     def __enter__(self):
         self._stream = open(self._file, 'wb')
@@ -51,21 +51,20 @@ class BitStreamWriter:
 class BitStreamReader:
 
     def __init__(self, filename):
-        self._buffer = 0
-        self._buffer_length = 0
+        self._buffer = bytearray()
+        self._cur_byte_len = 0
         self._eof = False
         self._file = self._get_path(filename)
 
     def _get_path(self, filename):
-        for path in sys.path:
-            for root, dirs, files in os.walk(path):
-                if filename in files:
-                    return os.path.join(root, filename)
-        raise FileNotFoundError(f'File {filename} was not found!')
+        for root, dirs, files in os.walk(os.getcwd()):
+            if filename in files:
+                return os.path.join(root, filename)
+        sys.exit(f'File {filename} was not found!')
 
-    def read(self, bit_length=8, is_reversed=False):
-        if self._buffer_length < bit_length and self._eof == False:
-            self._read_stream(bit_length)
+    def read_bits(self, bit_length=8, is_reversed=False):
+        if self._buffer_length < bit_length and self._bytes_left > 0:
+            self._read_stream((bit_length - self._buffer_length) //8 + 1)
         mask = (1 << bit_length) - 1
         value = self._buffer & mask
         self._buffer >>= bit_length
@@ -75,31 +74,26 @@ class BitStreamReader:
         return value
 
     def is_eof(self):
-        return self._eof or self._buffer_length < 0
+        return self._bytes_left == 0 and self._buffer_length <= 0
 
-    def _read_stream(self, bit_length=8):
-        add_bytes_len = ((bit_length // 8) + 1)
-        bytes = self._stream.read(add_bytes_len)
-        value = 0
-        length = 0
-        if len(bytes) != add_bytes_len:
-            self._eof = True
-        for i in range(len(bytes)):
-            value |= (bytes[i] << length)
-            length += 8
-        if length != 0:
-            self._buffer |= (value << self._buffer_length)
-            self._buffer_length += length
+    def _read_stream(self, byte_len):
+        bytes = self._stream.read(byte_len)
+        self._bytes_left -= len(bytes)
+        self._buffer.append(bytes)
 
     def _reverse(value, length):
         reversed = 0
         for i in range(length):
-            reversed <= 1
+            reversed <<= 1
             reversed |= (value >> i)
         return reversed
+    
+    def get_path(self):
+        return self._stream.name
 
     def __enter__(self):
         self._stream = open(self._file, 'rb')
+        self._bytes_left = os.path.getsize(self._file)
         return self
 
     def __exit__(self, exception, value, traceback):
