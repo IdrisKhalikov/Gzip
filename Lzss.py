@@ -9,14 +9,36 @@ three values: a bool, that represents whether
 the current segment is a symbol or a backref, and two ints,
 which are: symbol code and 0, if the segment is a symbol, and
 length and distance, if the segment is a backref'''
-met = []
 
+class SlidingWindow:
+    def __init__(self, length):
+        self._length = length
+        self._buffer = []
+
+    def append(self, value):
+        self._buffer.append(value)
+        self._reduce()
+
+    def _reduce(self):
+        if len(self._buffer) > self._length:
+            self._buffer[len(self._buffer)-self._length]
+
+    def __getitem__(self, index):
+        return self._buffer[index]
+    
+    def extend(self, values):
+        self._buffer.extend(values)
+        self._reduce()
+    
+    def __len__(self):
+        return len(self._buffer)
 
 class Token(NamedTuple):
     is_literal: bool
     value: int
     offset: int = 0
 
+met = SlidingWindow(BACKREF_LEN)
 
 def search_match(data, string):
     max_match_len = 0
@@ -46,8 +68,6 @@ def compress(data):
     index = len(search_buffer)
 
     while len(search_buffer) > 0:
-        while len(met) > BACKREF_LEN:
-            met = met[1:]
         match_len, offset = search_match(met, search_buffer)
         if match_len == -1:
             yield Token(True, search_buffer[0], 0)

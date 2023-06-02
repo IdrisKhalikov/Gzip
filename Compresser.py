@@ -16,9 +16,13 @@ class Compresser:
 
         while bytes := reader.read(32768):
             block.extend(bytes)
-            crc.add(bytes)
+            crc.add_bytes(bytes)
             total_length += len(bytes)
-            self._write_block_01(writer, block, total_length == filesize)
+            compressed_data = list(Lzss.compress(block))
+            is_final = (total_length == filesize)
+            # if not self._write_block_02(writer, compressed_data, is_final):
+            #     self._write_block_01(writer, compressed_data, is_final)
+            self._write_block_01(writer, compressed_data, is_final)
             block = []
             self._print_progress(total_length, filesize)
         writer.add_up()
@@ -46,29 +50,23 @@ class Compresser:
         if offset.length > 0:
             f.write(offset.value, offset.length)
 
-    def _write_block_01(self, f, block_data, is_final):
+    def _write_block_01(self, f, compressed_data, is_final):
         f.write(1 if is_final else 0, 1)
         f.write(1, 2)
-        compressed = Lzss.compress(block_data)
         huffman = Huffman.Fixed()
-        for token in compressed:
+        for token in compressed_data:
             if token.is_literal:
                 f.write(*huffman.get_literal(token.value), is_reversed=True)
                 continue
             self._write_code_offset(f, *huffman.get_length(token.value))
             self._write_code_offset(f, *huffman.get_distance(token.offset))
-        f.write(0x00, 7)
+        f.write(0x00,7)
 
-    def _write_block_02(self, f, block_data, is_final):
-        f.write(1 if is_final else 0, 1)
-        f.write(2, 2)
-
-        compressed = list(Lzss.compress(block_data))
-        compressed.append(Lzss.Token(True, 256, 0))
+    def _write_block_02(self, f, compressed_data, is_final):
         huffman = Huffman.Fixed()
         length_alphabet = []
         offset_alphabet = []
-        for token in compressed:
+        for token in compressed_data:
             if token.is_literal:
                 length_alphabet.append(token.value)
                 continue
@@ -77,11 +75,15 @@ class Compresser:
             offset, _ = huffman.get_distance_code(token.offset)
             offset_alphabet.append(offset)
 
-        length_codes, _ = Huffman.compress(length_alphabet)
-        offset_codes, _ = Huffman.compress(offset_alphabet)
+        length_codes = Huffman.compress(length_alphabet)
+        if any(code.length > 15 for code in length_codes.values()):
+            return False
+        offset_codes = Huffman.compress(offset_alphabet)
+        if any(code.length > 15 for code in offset_codes.values()):
+            return False
         # cl stands for 'code lengths'
-        length_cl = self.get_full_codes(length_codes, 286)
-        offset_cl = self.get_full_codes(offset_codes, 32)
+        length_cl = self.get_full_codes(length_codes,286, 257)
+        offset_cl = self.get_full_codes(offset_codes,32, 1)
         hlit = len(length_cl) - 257
         hdist = len(offset_cl) - 1
 
@@ -89,7 +91,7 @@ class Compresser:
         offset_cl, dist_add_codes = self.skip_repeat_codes(offset_cl)
         cl_codes = length_cl + offset_cl
         cl_add_codes = l_add_codes + dist_add_codes
-        cl_code_coded, _ = Huffman.compress([code.length for code in cl_codes])
+        cl_code_coded = Huffman.compress([code.length for code in cl_codes])
         order = [16, 17, 18, 0, 8, 7, 9, 6, 10,
                  5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
         cl_code_code = []
@@ -99,15 +101,17 @@ class Compresser:
                 cl_code_code.append(cl_code_coded[order[i]])
                 last_index = i
             else:
-                cl_code_code.append(Huffman.Code(0, 3))
+                cl_code_code.append(Huffman.Code(0, 0))
         cl_code_code = cl_code_code[:last_index+1]
         hclen = len(cl_code_code) - 4
 
+        f.write(1 if is_final else 0, 1)
+        f.write(2, 2)
         f.write(hlit, 5)
         f.write(hdist, 5)
         f.write(hclen, 4)
         for code in cl_code_code:
-            f.write(code.length, 3, is_reversed=True)
+            f.write(code.length, 3)
         add_code_index = 0
         for code in cl_codes:
             coded = cl_code_coded[code.length]
@@ -116,7 +120,7 @@ class Compresser:
                 add_bits = cl_add_codes[add_code_index]
                 f.write(add_bits.value, add_bits.length)
                 add_code_index += 1
-        for token in compressed:
+        for token in compressed_data:
             if token.is_literal:
                 code = length_codes[token.value]
                 f.write(code.value, code.length, is_reversed=True)
@@ -127,13 +131,15 @@ class Compresser:
             f.write(len_code.value, len_code.length, is_reversed=True)
             if offset.length > 0:
                 f.write(offset.value, offset.length)
-            index, offset = huffman.get_distance_code(token.offset)
-            dist_code = offset_codes[index]
-            f.write(dist_code.value, dist_code.length, is_reversed=True)
-            if offset.length > 0:
-                f.write(offset.value, offset.length)
+            if token.offset > 0:
+                index, offset = huffman.get_distance_code(token.offset)
+                dist_code = offset_codes[index]
+                f.write(dist_code.value, dist_code.length, is_reversed=True)
+                if offset.length > 0:
+                    f.write(offset.value, offset.length)
+        return True
 
-    def get_full_codes(self, codes, max_length):
+    def get_full_codes(self,codes,max_length, min_length):
         all_codes = []
         last_index = 0
         for i in range(max_length):
@@ -152,25 +158,30 @@ class Compresser:
         cur_repeat = Huffman.Code(-1, -1)
         cur_count = 0
         for code in codes:
-            if code.value == cur_repeat.value:
+            if code.length == cur_repeat.length:
                 cur_count += 1
                 continue
-            if cur_count < 3:
+            if cur_count < 3 and (cur_repeat.length == 0 and cur_count < 2):
+                if cur_repeat.length == 0:
+                    cur_count += 1
                 if cur_count != 0:
-                    skipped.extend([skipped[-1]]*cur_count)
+                    skipped.extend([cur_repeat]*cur_count)
             else:
+                if cur_repeat.length == 0:
+                    cur_count += 1
                 shortened, add_codes = self.remove_repeat(
                     cur_count, cur_repeat)
                 skipped.extend(shortened)
                 extra_bits.extend(add_codes)
             cur_count = 0
-            skipped.append(code)
+            if code.length != 0:
+                skipped.append(code)
             cur_repeat = code
         return (skipped, extra_bits)
 
     def remove_repeat(self, count, code):
         remove_list = []
-        max_remove = 138 if code.value == 0 else 6
+        max_remove = 138 if code.length == 0 else 6
         while True:
             for i in range(max_remove, 2, -1):
                 if count - i >= 0:
@@ -182,7 +193,7 @@ class Compresser:
         add_codes = []
         result.extend([code]*count)
         for val in remove_list:
-            if code.value == 0:
+            if code.length == 0:
                 if val > 10:
                     result.append(Huffman.Code(0, 18))
                     add_codes.append(Huffman.Code(val-11, 7))
@@ -191,7 +202,7 @@ class Compresser:
                     add_codes.append(Huffman.Code(val-3, 3))
             else:
                 result.append(Huffman.Code(0, 16))
-                add_codes.append(Huffman.Code(val-3, 3))
+                add_codes.append(Huffman.Code(val-3, 2))
         return (result, add_codes)
 
     def _write_header(self, f, filename):

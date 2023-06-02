@@ -28,7 +28,7 @@ class Fixed:
         return Code(coded, self.CODES[index][2])
 
     def get_literal(self, value):
-        assert (0 <= value <= 255)
+        assert (0 <= value <= 256)
         return self._get_code(value)
 
     def _get_index_offset(self, table, value):
@@ -54,7 +54,7 @@ class Fixed:
         index, offset = self._get_index_offset(self.DISTANCES, value)
         return (index, offset)
 
-def get_huffman(bytes):
+def _get_huffman(bytes):
     frequencies = Counter(bytes)
     tree = []
     codes = {byte: '' for byte in bytes}
@@ -73,21 +73,35 @@ def get_huffman(bytes):
         heappush(tree, (left_node[0]+right_node[0],
                  sorted(left_node[1] + right_node[1])))
 
+    for key in codes.keys():
+        codes[key] = len(codes[key])
     sorted_codes = sorted(codes.items(), key=lambda t: (t[1], t[0]))
+    return _get_codes(sorted_codes)
+
+def _get_codes(len_list):
+    codes = []
+    len_counts = Counter(item[1] for item in len_list)
+    code_starts = {}
     code = 0
-    cur_length = 1
-    code_lengths = {}
-    for code_pair in sorted_codes:
-        while len(code_pair[1]) > cur_length:
-            cur_length += 1
-            code <<= 1
-        codes[code_pair[0]] = code
-        code_lengths[code_pair[0]] = Code(code, cur_length)
-        code += 1
-    return code_lengths
+    for length in len_counts:
+        if length - 1 not in len_counts:
+            code = code << 1
+        else:
+            code = (code + len_counts[length-1]) << 1
+        code_starts[length] = code
 
+    for pair in len_list:
+        val = bin(code_starts[pair[1]])[2:].zfill(pair[1])
+        code_starts[pair[1]] += 1
+        codes.append((val, pair[0]))
+    return codes
 
+def get_huffman_value_code(data):
+    return {pair[1] : Code(int(pair[0], 2), len(pair[0])) for pair in _get_huffman(data)}
+
+def get_from_code_lengths(data):
+    return {pair[0] : pair[1] for pair in _get_codes(data)}
+        
 def compress(data):
-    codes = get_huffman(data)
-    encoded = ''.join(bin(codes[value].value)[2:].zfill(codes[value].length) for value in data)
-    return codes, encoded
+    codes = get_huffman_value_code(data)
+    return codes

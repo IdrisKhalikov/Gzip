@@ -51,8 +51,7 @@ class BitStreamWriter:
 class BitStreamReader:
 
     def __init__(self, filename):
-        self._buffer = bytearray()
-        self._cur_byte_len = 0
+        self._buffer = BitArray()
         self._eof = False
         self._file = self._get_path(filename)
 
@@ -62,32 +61,40 @@ class BitStreamReader:
                 return os.path.join(root, filename)
         sys.exit(f'File {filename} was not found!')
 
-    def read_bits(self, bit_length=8, is_reversed=False):
-        if self._buffer_length < bit_length and self._bytes_left > 0:
-            self._read_stream((bit_length - self._buffer_length) //8 + 1)
-        mask = (1 << bit_length) - 1
-        value = self._buffer & mask
-        self._buffer >>= bit_length
-        self._buffer_length -= bit_length
+    def read(self, bit_length=8, is_reversed=False):
+        if len(self._buffer) < bit_length and self._bytes_left > 0:
+            self._read_stream((bit_length - len(self._buffer)) // 8 + 1)
+        value = self._buffer.pop(bit_length)
         if is_reversed:
             return self._reverse(value, bit_length)
         return value
 
+    def read_assert(self, expected, bit_length=8, is_reversed=False):
+        value = self.read(bit_length, is_reversed)
+        if value != expected:
+            raise AssertionError(
+                f'Expected to read: {hex(expected)}, but was: {hex(value)}')
+
     def is_eof(self):
-        return self._bytes_left == 0 and self._buffer_length <= 0
+        return self._bytes_left == 0 and len(self._buffer) <= 0
 
     def _read_stream(self, byte_len):
         bytes = self._stream.read(byte_len)
         self._bytes_left -= len(bytes)
-        self._buffer.append(bytes)
+        self._buffer.extend(bytes)
 
-    def _reverse(value, length):
+    def _reverse(self, value, length):
         reversed = 0
         for i in range(length):
             reversed <<= 1
-            reversed |= (value >> i)
-        return reversed
+            reversed |= (value >> i) & 1
+        return reversed & ((1 << length) - 1)
     
+    def skip_to_byte_boundary(self):
+        to_skip = len(self._buffer) - (len(self._buffer) // 8) * 8
+        if to_skip > 0:
+            self._buffer.pop(to_skip)
+
     def get_path(self):
         return self._stream.name
 
@@ -98,3 +105,30 @@ class BitStreamReader:
 
     def __exit__(self, exception, value, traceback):
         self._stream.close()
+
+
+class BitArray:
+
+    def __init__(self):
+        self._buffer = 0
+        self._buffer_len = 0
+
+    def append(self, value, bit_length=8):
+        mask = (1 << bit_length) - 1
+        value = value & mask
+        self._buffer |= (value << self._buffer_len)
+        self._buffer_len += bit_length
+
+    def extend(self, data):
+        for byte in data:
+            self.append(byte)
+
+    def pop(self, bit_length=8):
+        mask = (1 << bit_length) - 1
+        value = self._buffer & mask
+        self._buffer >>= min(self._buffer_len, bit_length)
+        self._buffer_len -= min(self._buffer_len, bit_length)
+        return value
+
+    def __len__(self):
+        return self._buffer_len
