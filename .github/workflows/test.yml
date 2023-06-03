@@ -8,6 +8,7 @@ jobs:
       - uses: actions/setup-node@v3
       - name: Install
         run: npm install coverage
+      - name: Additional install
         run: npm i -D nyc
       - name: Test and Coverage
         run: npm run coverage
