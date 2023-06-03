@@ -1,1 +1,3 @@
-"coverage": "nyc -r text -r json-summary python"
+{
+    "coverage": "nyc -r text -r json-summary python"
+}
