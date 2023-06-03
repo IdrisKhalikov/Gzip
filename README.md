@@ -1,3 +1,5 @@
+[![cov](https://IdrisKhalikov.github.io/Gzip/badges/coverage.svg)](https://github.com/IdrisKhalikov/Gzip/actions)
+
 # Архиватор DEFLATE
 Версия 1.2  
 Автор: Халиков Идрис (idrishal277@gmail.com)
