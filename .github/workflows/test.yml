@@ -11,7 +11,7 @@ jobs:
       - name: Additional install
         run: npm i -D nyc
       - name: Test and Coverage
-        run: npm run coverage
+        run: coverage run -m unittest
 
       - name: Update Coverage Badge
         uses: we-cli/coverage-badge-action@main
