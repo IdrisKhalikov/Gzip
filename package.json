@@ -1,3 +1,5 @@
 {
-    "coverage": "nyc -r text -r json-summary python"
+    "scripts": {
+        "coverage": "nyc -r text -r json-summary python"
+    }
 }
