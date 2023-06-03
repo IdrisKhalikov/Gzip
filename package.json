@@ -1,5 +1,0 @@
-{
-    "scripts": {
-        "coverage": "nyc -r text -r json-summary"
-    }
-}
