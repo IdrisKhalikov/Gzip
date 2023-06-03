@@ -1,5 +1,5 @@
 {
     "scripts": {
-        "coverage": "nyc -r text -r json-summary mocha"
+        "coverage": "nyc -r text -r json-summary"
     }
 }
