@@ -12,14 +12,8 @@ def get_path(filename):
             return os.path.join(root, filename)
     sys.exit(f'File {filename} was not found!')
 
-def main(args=None):
-    parser = argparse.ArgumentParser(
-        description='Compresses file using DEFLATE')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('-c', type=str)
-    group.add_argument('-d', type=str)
-    args = vars(parser.parse_args())
-
+def main(*args, **kwargs):
+    args = get_args()
     if args['c']:
         compress(args['c'])
     if args['d']:
@@ -27,18 +21,25 @@ def main(args=None):
     print('OK')
     sys.exit(0)
 
+def get_args():
+    parser = argparse.ArgumentParser(
+    description='Compresses file using DEFLATE')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-c', type=str)
+    group.add_argument('-d', type=str)
+    args = vars(parser.parse_args())
+    return args
+
 def compress(filename):
     compresser = Compresser()
     with open(get_path(filename), 'rb') as reader:
             name = reader.name.rsplit('.',1)[0]
             with BitStreamWriter(f'{name}.gz') as writer:
-                compresser.compress_file(reader, writer, reader.name)
+                Compresser().compress_file(reader, writer, reader.name)
 
 def decompress(filename):
-    decompresser = Decompresser()
     with BitStreamReader(filename) as reader:
-        decompresser.decompress(reader)
-
+        Decompresser().decompress(reader)
 
 if __name__ == '__main__':
     main()
