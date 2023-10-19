@@ -1,12 +1,13 @@
 import os.path
 import sys
 
-
 class BitStreamWriter:
 
-    def __init__(self, filename):
-        self._buffer = 0
-        self._buffer_length = 0
+    def __init__(self, filename, buffer_size=32768):
+        self._buffer = bytearray()
+        self._last_byte = 0
+        self._byte_len = 0
+        self._buffer_size = buffer_size
         self._file = filename
 
     def write(self, value, bit_length=8, is_reversed=False):
@@ -14,19 +15,15 @@ class BitStreamWriter:
         value = value & mask
         if is_reversed:
             value = self._reverse(value, bit_length)
-        self._buffer |= (value << self._buffer_length)
-        self._buffer_length += bit_length
-        while (self._write_stream()):
-            pass
+        self._last_byte |= (value << self._byte_len)
+        self._byte_len += bit_length
+        while self._byte_len >= 8:
+            self._buffer.append(self._last_byte & 0xFF)
+            self._last_byte >>= 8
+            self._byte_len -= 8
 
-    def _write_stream(self):
-        if self._buffer_length < 8:
-            return False
-        byte = (self._buffer & 0xFF).to_bytes(1)
-        self._stream.write(byte)
-        self._buffer_length -= 8
-        self._buffer >>= 8
-        return True
+        if len(self._buffer) >= self._buffer_size:
+            self.flush()
 
     def _reverse(self, value, length):
         reversed = 0
@@ -36,8 +33,12 @@ class BitStreamWriter:
         return reversed
 
     def add_up(self):
-        if self._buffer_length > 0:
-            self.write(0x00, 8-self._buffer_length)
+        if self._byte_len > 0:
+            self.write(0x00, 8-self._byte_len)
+    
+    def flush(self):
+        self._stream.write(self._buffer)
+        self._buffer.clear()
 
     def __enter__(self):
         self._stream = open(self._file, 'wb')
@@ -45,6 +46,7 @@ class BitStreamWriter:
 
     def __exit__(self, exception, value, traceback):
         self.add_up()
+        self.flush()
         self._stream.close()
 
 

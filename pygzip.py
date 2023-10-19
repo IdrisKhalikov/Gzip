@@ -31,7 +31,6 @@ def get_args():
     return args
 
 def compress(filename):
-    compresser = Compresser()
     with open(get_path(filename), 'rb') as reader:
             name = reader.name.rsplit('.',1)[0]
             with BitStreamWriter(f'{name}.gz') as writer:

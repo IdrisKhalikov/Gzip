@@ -1,11 +1,14 @@
 from BitStream import BitStreamReader
 from Crc32 import Crc32
 import Huffman
-from Lzss import SlidingWindow
+from SlidingWindow import SlidingWindow
 import sys
 
 
 class Decompresser:
+
+    def __init__(self) -> None:
+        self._default_codes = self._get_default_codes()
 
     def decompress(self, reader):
         crc32 = Crc32()
@@ -48,10 +51,10 @@ class Decompresser:
     def _read_block_01(self, reader, writer, buffer, crc):
         length = 0
         fixed_codes = Huffman.Fixed()
-        codes = self._get_default_codes()
+        codes = self._default_codes
         while (code := self._read_next_code(reader, codes)) is not None:
             if code < 256:
-                buffer.append(code)
+                buffer.add(code)
                 crc.add(code)
                 writer.write(code.to_bytes())
                 length += 1
@@ -65,9 +68,9 @@ class Decompresser:
             if add_dist > 0:
                 dist += reader.read(add_dist)
             for i in range(backref_len):
-                buffer.append(buffer[-dist])
-                crc.add(buffer[-1])
-                writer.write(buffer[-1].to_bytes())
+                buffer.add(buffer.get_last(dist-1))
+                crc.add(buffer.get_last())
+                writer.write(buffer.get_last().to_bytes())
                 length += 1
         return length
 
@@ -112,4 +115,4 @@ class Decompresser:
             if byte == 0x00:
                 break
             bytes.append(byte)
-        return bytes.decode(encoding='ascii')
+        return bytes.decode()

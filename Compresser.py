@@ -1,37 +1,36 @@
+from ProgressBar import ProgressBar
 from Crc32 import Crc32
 import os.path
 import Huffman
-import Lzss
+import Lzss_new
 
 
 class Compresser:
 
     def compress_file(self, reader, writer, filename):
+        lzss = Lzss_new.Lzss()
         crc = Crc32()
         total_length = 0
         filesize = os.path.getsize(filename)
         self._write_header(writer, filename)
         block = []
-        self._print_progress(0, filesize)
+        self._progress_bar = ProgressBar(20, filesize)
+        self._progress_bar.update()
 
         while bytes := reader.read(32768):
             block.extend(bytes)
             crc.add_bytes(bytes)
             total_length += len(bytes)
-            compressed_data = list(Lzss.compress(block))
+            compressed_data = list(lzss.compress(block))
             is_final = (total_length == filesize)
             self._write_block_01(writer, compressed_data, is_final)
             block = []
-            self._print_progress(total_length, filesize)
+            self._progress_bar.set_value(total_length)
+            self._progress_bar.update()
         writer.add_up()
         writer.write(crc.get_crc(), 32)
         writer.write(total_length % (2**32), 32)
         print(' '*56, end='\r')
-
-    def _print_progress(self, processed, filesize):
-        progress = round((processed / filesize)*100, 2)
-        progress_bar = ((int(progress//5))*'▇').ljust(20, '-')
-        print(f'Progress:[{progress_bar}] {progress}%', end='\r')
 
     def _write_block_00(self, f, block_data, is_final):
         header = 1 if is_final else 0
@@ -69,7 +68,7 @@ class Compresser:
         f.write(0x00)  # extra flags
         f.write(0x0b)  # os
         # writing filename
-        bytes = str.encode(filename, encoding='ascii')
+        bytes = str.encode(filename.rsplit('\\',1)[1])
         for byte in bytes:
             f.write(byte)
         f.write(0x00, 8)  # string end - null terminator
