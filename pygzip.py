@@ -32,7 +32,7 @@ def get_args():
 
 def compress(filename):
     with open(get_path(filename), 'rb') as reader:
-            name = reader.name.rsplit('.',1)[0]
+            name = reader.name.rsplit('\\',1)[1]
             with BitStreamWriter(f'{name}.gz') as writer:
                 Compresser().compress_file(reader, writer, reader.name)
 

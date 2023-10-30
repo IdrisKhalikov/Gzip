@@ -2,13 +2,13 @@ from ProgressBar import ProgressBar
 from Crc32 import Crc32
 import os.path
 import Huffman
-import Lzss_new
+import Lzss
 
 
 class Compresser:
 
     def compress_file(self, reader, writer, filename):
-        lzss = Lzss_new.Lzss()
+        lzss = Lzss.Lzss()
         crc = Crc32()
         total_length = 0
         filesize = os.path.getsize(filename)
@@ -21,8 +21,8 @@ class Compresser:
             block.extend(bytes)
             crc.add_bytes(bytes)
             total_length += len(bytes)
-            compressed_data = list(lzss.compress(block))
             is_final = (total_length == filesize)
+            compressed_data = list(lzss.compress(block, is_final))
             self._write_block_01(writer, compressed_data, is_final)
             block = []
             self._progress_bar.set_value(total_length)

@@ -1,4 +1,5 @@
 from typing import NamedTuple
+from BinarySearchTree import BST
 
 LOOKAHEAD = 258  # Размер буфера из незакодированных символов.
 BACKREF_LEN = 32768  # Размер словаря
@@ -9,77 +10,90 @@ three values: a bool, that represents whether
 the current segment is a symbol or a backref, and two ints,
 which are: symbol code and 0, if the segment is a symbol, and
 length and distance, if the segment is a backref'''
+
+
 class Token(NamedTuple):
     is_literal: bool
     value: int
     offset: int = 0
 
-class SlidingWindow:
-    def __init__(self, length):
-        self._length = length
-        self._buffer = []
-
-    def append(self, value):
-        self._buffer.append(value)
-        self._reduce()
-
-    def _reduce(self):
-        if len(self._buffer) > self._length:
-            self._buffer = self._buffer[len(self._buffer)-self._length:]
-
-    def __getitem__(self, index):
-        return self._buffer[index]
-    
-    def extend(self, values):
-        self._buffer.extend(values)
-        self._reduce()
-    
-    def __len__(self):
-        return len(self._buffer)
-
-
 class Lzss:
     def __init__(self):
-        self._met = SlidingWindow(BACKREF_LEN)
+        self._buffer = [-1]*(BACKREF_LEN + LOOKAHEAD - 1)  # Циклический буфер
+        self._nodes = [None]*BACKREF_LEN
+        self._trees = [BST(self._buffer, LOOKAHEAD) for _ in range(256)]
+        self._last_match = 1
+        self._left = 0
+        self._right = LOOKAHEAD
+        self._was_init = False
 
-    def _search_match(self, string):
-        max_match_len = 0
-        max_match_offset = 0
-        cur_match = 0
-        for index in range(len(self._met)):
-            if cur_match < len(string) and self._met[index] == string[cur_match]:
-                cur_match += 1
-                if max_match_len <= cur_match:
-                    max_match_len = cur_match
-                    max_match_offset = len(self._met) - index + cur_match - 1
+    def _delete_last_node(self):
+        if self._buffer[self._right] == -1:
+            return
+        self._trees[self._buffer[self._right]].delete(self._nodes[self._right])
+        self._nodes[self._right] = None
+
+    def _insert_next_node(self):
+        if self._buffer[self._left] == -1:
+            return (0,0)
+        match_len, index, node = self._trees[self._buffer[self._left]].insert(self._left)
+        self._nodes[self._left] = node
+        return match_len, index
+    
+    def _move_symbol(self, byte=None):
+        self._delete_last_node()
+        if byte is not None:
+            self._set_symbol(self._right, byte)
+        self._right = (self._right + 1) % BACKREF_LEN
+        match = self._insert_next_node()
+        self._left = (self._left + 1) % BACKREF_LEN
+        return match
+    
+    def _set_symbol(self, index, value):
+        self._buffer[index] = value
+        if index < LOOKAHEAD - 1:
+            self._buffer[index + BACKREF_LEN] = value
+
+    def _init_buffer(self, data):
+        init_length = min(LOOKAHEAD, len(data))
+        for i in range(init_length):
+            next_pos = (self._left + i) % BACKREF_LEN
+            self._set_symbol(next_pos, data[i])
+        self._was_init = True
+        return i + 1
+
+    def compress(self, data, is_final):
+        index = 0
+        is_first_run = not self._was_init
+        if not self._was_init:
+            index = self._init_buffer(data)
+
+        to_process = len(data)
+        if is_first_run:
+            to_process -= LOOKAHEAD
+        if is_final:
+            to_process += LOOKAHEAD
+
+        while to_process > 0:
+            last_symbol = self._buffer[self._left]
+            last_index = self._left
+            byte = data[index] if index < len(data) else None
+            match_len, match_index = self._move_symbol(byte)
+            if match_len > to_process:
+                match_len = to_process
+            to_process -= 1
+            index += 1
+
+            if match_len < MIN_LEN:
+                match_len = 1
+                yield Token(True, last_symbol, 0)
             else:
-                # Откатываемся назад, на случай если считанный символ совпадает с началом строки
-                index -= cur_match
-                cur_match = 0
-        if max_match_len < MIN_LEN:
-            return (-1, -1)
-        token_len = max_match_len.bit_length() + max_match_offset.bit_length()
-        if token_len > len(string) * 8:
-            return (-1, -1)
-        return (max_match_len, max_match_offset)
-
-
-    def compress(self,data):
-        search_buffer = bytearray(data[:min(len(data), LOOKAHEAD)])
-        index = len(search_buffer)
-
-        while len(search_buffer) > 0:
-            match_len, offset = self._search_match(search_buffer)
-            if match_len == -1:
-                yield Token(True, search_buffer[0], 0)
-                self._met.append(search_buffer.pop(0))
-            else:
-                token = Token(False, match_len, offset)
-                self._met.extend(search_buffer[:match_len])
-                search_buffer = search_buffer[match_len:]
-                yield token
-            while index < len(data) and len(search_buffer) < LOOKAHEAD:
-                search_buffer.append(data[index])
-                index += 1
-            while len(search_buffer) > LOOKAHEAD:
-                self._met.append(search_buffer.pop(0))
+                if last_index < match_index:
+                    last_index += BACKREF_LEN
+                offset = last_index - match_index
+                for _ in range(match_len - 1):
+                    byte = data[index] if index < len(data) else None
+                    self._move_symbol(byte)
+                    to_process -= 1
+                    index += 1
+                yield Token(False, match_len, offset)
