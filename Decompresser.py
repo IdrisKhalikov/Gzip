@@ -67,7 +67,7 @@ class Decompresser:
             dist, add_dist = fixed_codes.DISTANCES[dist_code]
             if add_dist > 0:
                 dist += reader.read(add_dist)
-            for i in range(backref_len):
+            for _ in range(backref_len):
                 buffer.add(buffer.get_last(dist-1))
                 crc.add(buffer.get_last())
                 writer.write(buffer.get_last().to_bytes())
