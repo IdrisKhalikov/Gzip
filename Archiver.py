@@ -15,23 +15,27 @@ END_OF_BLOCK = 0x00.to_bytes(1)
 class Archiver:
 
     def create_archive(self, path_to):
+        archive_path = path_to + '.archive'
+        file = open(archive_path, 'wb')
         if os.path.isfile(path_to):
-            yield from self._get_archived_file(path_to)
+            self._write_archived_file(path_to)
             return
-        folders = [path_to]
+        folders = [self._get_name(path_to)]
         for cur_dir, subfolders, files in os.walk(path_to):
             cur_folder = self._get_name(cur_dir)
             while folders[-1] != cur_folder:
                 folders.pop()
-                yield END_OF_BLOCK
+                file.write(END_OF_BLOCK)
             folders.extend(reversed(subfolders))
-            yield self._get_header(self._get_name(cur_dir), False)
+            file.write(self._get_header(self._get_name(cur_dir), False))
 
-            for file in files:
-                yield from self._get_archived_file('\\'.join((cur_dir, file)))
+            for filename in files:
+                self._write_archived_file('\\'.join((cur_dir, filename)), file)
         while folders:
             folders.pop()
-            yield END_OF_BLOCK
+            file.write(END_OF_BLOCK)
+        file.close()
+        return archive_path
     
     def _get_name(self, path):
         return path.rsplit('\\',1)[-1]
@@ -44,84 +48,62 @@ class Archiver:
         header.extend(filesize.to_bytes(12))
         return header
     
-    def _get_file_content(self, path):
-        with open(path, 'rb') as reader:
-            while bytes := reader.read(CHUNK_SIZE):
-                yield bytes
-    
-    def _get_archived_file(self, path_to):
+    def _write_archived_file(self, path_to, file):
         filesize = os.path.getsize(path_to)
-        yield self._get_header(self._get_name(path_to), True, filesize)
-        yield from self._get_file_content(path_to)
-        yield END_OF_BLOCK
+        file.write(self._get_header(self._get_name(path_to), True, filesize))
+        with open(path_to, 'rb') as reader:
+            while data := reader.read(CHUNK_SIZE):
+                file.write(data)
+        file.write(END_OF_BLOCK)
     
 class Dearchiver:
     def __init__(self):
         self._buffer = bytearray()
 
-    def unarchive(self, byte_stream):
-        self._stream = self._get_archive_reader(byte_stream)
+    def unarchive(self, path_to):
+        reader = open(path_to, 'rb')
         directory = os.getcwd()
         while True:
-            name, isfile = self._try_write_file(directory)
+            name, isfile = self._try_write_file(directory, reader)
             if not isfile:
                 directory += f'\\{name}'
             while True:
-                byte = next(self._stream, None)
-                if byte is None:
+                byte = reader.peek(1)[:1]
+                if byte == b'':
+                    reader.close()
                     return
-                if byte == 0x00:
+                if byte == END_OF_BLOCK:
+                    reader.read(1)
                     directory = directory.rsplit('\\',1)[0]
                 else:
-                    self._buffer.append(byte)
                     break
-
-    def _is_eof(self):
-        byte = next(self._stream)
-        if byte is None:
-            return True
-        self._buffer.append(byte)
-        return False
-
-    def _get_archive_reader(self, byte_stream):
-        while True:
-            if self._buffer:
-                yield self._buffer.pop()
-            else:
-                next_byte = next(byte_stream, None)
-                if next_byte is None:
-                    break
-                yield next_byte
     
-    def _read_until_end_of_block(self):
+    def _read_until_end_of_block(self, reader):
         data = bytearray()
-        while (byte := next(self._stream)) != 0x00:
-            data.append(byte)
-        return data
-    
-    def _read_bytes(self, length):
-        data = bytearray()
-        for _ in range(length):
-            data.append(next(self._stream))
+        while (byte := reader.read(1)) != END_OF_BLOCK:   
+            data.extend(byte)
         return data
 
-    def _try_write_file(self, directory):
-        name_bytes = self._read_until_end_of_block()
+    def _write_file(self, path, length, reader):
+        with open(path, 'wb') as f:
+            while length:
+                data = reader.read(min(length, CHUNK_SIZE))
+                f.write(data)
+                length -= len(data)
+
+    def _try_write_file(self, directory, reader):
+        name_bytes = self._read_until_end_of_block(reader)
         name = name_bytes.decode(encoding='ascii')
-        is_file = next(self._stream) == 0xFF
-        filesize = int.from_bytes(self._read_bytes(12))
-        path = '\\'.join((directory, name))
+        is_file = reader.read(1)[0] == 0xFF
+        filesize = int.from_bytes(reader.read(12))
+        path_to = '\\'.join((directory, name))
         if is_file:
-            with open(path, 'wb') as f:
-                f.write(self._read_bytes(filesize))
+            self._write_file(path_to, filesize, reader)
         else:
-            os.mkdir(path)
+            if os.path.exists(path_to):
+                path_to += '-1'
+                name += '-1'
+            os.mkdir(path_to)
         if is_file:
-            next(self._stream)
+            reader.read(1)
         return name, is_file
-
-def read_bytes(file):
-    with open('test.archive', 'rb') as f:
-        while byte := f.read(1):
-            yield byte[0]
-Dearchiver().unarchive(read_bytes('test'))

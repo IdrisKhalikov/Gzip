@@ -17,14 +17,14 @@ class Compresser:
         self._progress_bar = ProgressBar(20, filesize)
         self._progress_bar.update()
 
-        while bytes := reader.read(32768):
+        while bytes := reader.read(65536):
             block.extend(bytes)
             crc.add_bytes(bytes)
             total_length += len(bytes)
             is_final = (total_length == filesize)
-            compressed_data = list(lzss.compress(block, is_final))
+            compressed_data = lzss.compress(block, is_final)
             self._write_block_01(writer, compressed_data, is_final)
-            block = []
+            block.clear()
             self._progress_bar.set_value(total_length)
             self._progress_bar.update()
         writer.add_up()
@@ -68,7 +68,7 @@ class Compresser:
         f.write(0x00)  # extra flags
         f.write(0x0b)  # os
         # writing filename
-        bytes = str.encode(filename.rsplit('\\',1)[1])
+        bytes = str.encode(filename.rsplit('\\',1)[-1])
         for byte in bytes:
             f.write(byte)
         f.write(0x00, 8)  # string end - null terminator

@@ -1,4 +1,5 @@
 from BitStream import BitStreamReader, BitStreamWriter
+from Archiver import Archiver, Dearchiver
 from Decompresser import Decompresser
 from Compresser import Compresser
 import argparse
@@ -8,7 +9,7 @@ import os
 
 def get_path(filename):
     for root, dirs, files in os.walk(os.getcwd()):
-        if filename in files:
+        if filename in files or filename in dirs:
             return os.path.join(root, filename)
     sys.exit(f'File {filename} was not found!')
 
@@ -31,14 +32,18 @@ def get_args():
     return args
 
 def compress(filename):
-    with open(get_path(filename), 'rb') as reader:
-            name = reader.name.rsplit('\\',1)[1]
-            with BitStreamWriter(f'{name}.gz') as writer:
-                Compresser().compress_file(reader, writer, reader.name)
+    archive_path = Archiver().create_archive(get_path(filename))
+    name = archive_path.rsplit('\\',1)[-1]
+    with open(archive_path, 'rb') as reader:
+        with BitStreamWriter(f'{name}.gz') as writer:
+            Compresser().compress_file(reader, writer, archive_path)
+    os.remove(archive_path)
 
 def decompress(filename):
     with BitStreamReader(filename) as reader:
-        Decompresser().decompress(reader)
+        archive_path = Decompresser().decompress(reader)
+    Dearchiver().unarchive(archive_path)
+    os.remove(archive_path)
 
 if __name__ == '__main__':
     main()

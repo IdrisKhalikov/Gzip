@@ -7,7 +7,7 @@ import sys
 
 class Decompresser:
 
-    def __init__(self) -> None:
+    def __init__(self):
         self._default_codes = self._get_default_codes()
 
     def decompress(self, reader):
@@ -36,13 +36,14 @@ class Decompresser:
         actual_len = reader.read(32)
         if total_length % 2**32 != actual_len:
             sys.exit('Data lengths do not match!')
+        return filename
 
     def _read_block_00(self, reader, writer, crc):
         reader.read(5)
         length = reader.read(16)
         neg_len = reader.read(16)
         assert length == (~neg_len & 0xFFFF)
-        for i in range(length):
+        for _ in range(length):
             byte = reader.read()
             crc.add(byte)
             writer.write(byte.to_bytes())

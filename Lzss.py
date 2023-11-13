@@ -63,6 +63,7 @@ class Lzss:
         return i + 1
 
     def compress(self, data, is_final):
+        compressed = []
         index = 0
         is_first_run = not self._was_init
         if not self._was_init:
@@ -86,7 +87,7 @@ class Lzss:
 
             if match_len < MIN_LEN:
                 match_len = 1
-                yield Token(True, last_symbol, 0)
+                compressed.append(Token(True, last_symbol, 0))
             else:
                 if last_index < match_index:
                     last_index += BACKREF_LEN
@@ -96,4 +97,5 @@ class Lzss:
                     self._move_symbol(byte)
                     to_process -= 1
                     index += 1
-                yield Token(False, match_len, offset)
+                compressed.append(Token(False, match_len, offset))
+        return compressed

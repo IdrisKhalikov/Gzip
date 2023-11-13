@@ -59,7 +59,7 @@ class BitStreamReader:
 
     def _get_path(self, filename):
         for root, dirs, files in os.walk(os.getcwd()):
-            if filename in files:
+            if filename in files or filename in dirs:
                 return os.path.join(root, filename)
         sys.exit(f'File {filename} was not found!')
 
