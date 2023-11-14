@@ -33,23 +33,12 @@ def get_args():
     return args
 
 def compress(filename):
-    folder_name = None
-    was_folder_created = False
-    if os.path.isfile(filename):
-        folder_name = filename.rsplit('\\',1)[-1].rsplit('.',1)[0]
-        os.mkdir(folder_name)
-        shutil.copy(filename, folder_name)
-        was_folder_created = True
-        filename = folder_name
-
     archive_path = Archiver().create_archive(get_path(filename))
     name = archive_path.rsplit('\\',1)[-1]
     with open(archive_path, 'rb') as reader:
         with BitStreamWriter(f'{name}.gz') as writer:
             Compresser().compress_file(reader, writer, archive_path)
     os.remove(archive_path)
-    if was_folder_created:
-        shutil.rmtree(folder_name)
 
 def decompress(filename):
     with BitStreamReader(filename) as reader:
