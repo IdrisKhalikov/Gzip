@@ -93,21 +93,21 @@ class BST:
         node.left = None
         node.right = None
         node.parent = None
-    
+
     def _update_node(self, node):
         if node.left is not None:
             node.left.parent = node
         if node.right is not None:
             node.right.parent = node
 
-    def traverse(self, func, node=None):
+    def get_nodes(self, func, node=None):
         if node is None:
             node = self._root
         if node.left:
-            self.traverse(func, node.left)
-        func(node.key)
+            yield from self.get_nodes(func, node.left)
+        yield node.key
         if node.right:
-            self.traverse(func, node.right)
+            yield from self.get_nodes(func, node.right)
 
 
 class Node:

@@ -8,5 +8,5 @@ class TestLzss(unittest.TestCase):
         for letter in 'Hello world! ':
             expected.append(Lzss.Token(True, ord(letter),0))
         expected.append(Lzss.Token(False, 12, 13))
-        compressed = Lzss.compress(b'Hello world! Hello world!')
+        compressed = Lzss.Lzss().compress(b'Hello world! Hello world!', True)
         self.assertListEqual(expected, list(compressed))
