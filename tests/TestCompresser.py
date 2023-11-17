@@ -12,10 +12,9 @@ class TestCompresser(unittest.TestCase):
             f.write(text)
         pygzip.compress('test.txt')
         os.remove('test.txt')
-        pygzip.decompress('test.archive.gz')
-        os.remove('test.archive.gz')
+        pygzip.decompress('test.txt.archive.gz')
+        os.remove('test.txt.archive.gz')
         actual = bytearray()
-        with open('test/test.txt', 'rb') as f:
+        with open('test.txt', 'rb') as f:
             actual.extend(f.read())
-        shutil.rmtree('test')
         self.assertSequenceEqual(text, actual)
