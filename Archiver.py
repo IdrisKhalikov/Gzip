@@ -1,13 +1,13 @@
 import os
 import sys
 
-'''ARCHIVE FORMAT:
-1.filename/directory name
-2.ZERO BYTE
-3.ISFILE (0x00 if object is directory, 0xFF otherwise)
-3.filesize, 12 byte field (if directory is encoded, this field can be filled with anything)
-4.file content itself
-5.ZERO BYTE'''
+'''Формат архива:
+1.Имя файла/директории
+2.Нулевой байт
+3.Байт-флаг, является ли объект файлом (0x00 - папка, иначе 0xFF)
+3.Размер файла, поле 12 байт(если объект - директория, можно написать что угодно)
+4.Содержимое файла
+5.Нулевой байт, индикатор конца описания объекта'''
 
 CHUNK_SIZE = 32768
 END_OF_BLOCK = 0x00.to_bytes(1)

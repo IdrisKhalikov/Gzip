@@ -60,6 +60,7 @@ class Compresser:
         f.write(0x00,7)
 
     def _write_header(self, f, filename):
+        #Заголовок и необходимые флаги
         f.write(0x1f)  # gzip id
         f.write(0x8b)  # gzip id
         f.write(0x08)  # using deflate compression
@@ -71,4 +72,4 @@ class Compresser:
         bytes = str.encode(filename.rsplit('\\',1)[-1])
         for byte in bytes:
             f.write(byte)
-        f.write(0x00, 8)  # string end - null terminator
+        f.write(0x00, 8)  #Нулевой байт - индикатор, что строка закончилась

@@ -3,6 +3,25 @@
 Сущности дерева и узлов тоже разделил, чтобы каждый раз при вызове различных методов не передавать массив.
 Здесь значения в узлах - начальные индексы подстрок в массиве'''
 
+'''Чтобы немного оптимизировать поиск подстроки, 
+вместо одного дерева создаем 256 по одному на каждый возможный символ в начале строки'''
+
+class BSTArray:
+    def __init__(self, arr, lookahead):
+        self._arr = arr
+        self._trees = [BST(arr, lookahead) for _ in range(256)]
+        self._nodes = [None]*len(arr)
+    
+    def insert(self, index):
+        match_len, match_index, node =  self._trees[self._arr[index]].insert(index)
+        self._nodes[index] = node
+        return match_len, match_index
+
+    def delete(self, index):
+        if self._nodes[index] is None:
+            return
+        self._trees[self._arr[index]].delete(self._nodes[index])
+
 
 class BST:
     def __init__(self, array, length):
@@ -44,6 +63,9 @@ class BST:
                 node = node.right
         return max_match_len, max_match_index, node
 
+    '''Удаляет узел, принимает в качестве аргумента сам узел.
+    Такая реализация сдеалана, чтобы не тратить время на поиск узла, как в случае с удалением по индексу.
+    При добавлении узла он сохраняется в массив, откуда при необходимости удаляется.'''
     def delete(self, node):
         if node == None:
             return

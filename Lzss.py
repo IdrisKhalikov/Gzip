@@ -1,15 +1,9 @@
 from typing import NamedTuple
-from BinarySearchTree import BST
+from BinarySearchTree import BSTArray
 
 LOOKAHEAD = 258  # Размер буфера из незакодированных символов.
 BACKREF_LEN = 32768  # Размер словаря
 MIN_LEN = 3  # Минимальная длина кодируемого сообщения
-
-'''Each symbol/backref is saved in a tuple that contains
-three values: a bool, that represents whether
-the current segment is a symbol or a backref, and two ints,
-which are: symbol code and 0, if the segment is a symbol, and
-length and distance, if the segment is a backref'''
 
 
 class Token(NamedTuple):
@@ -17,28 +11,22 @@ class Token(NamedTuple):
     value: int
     offset: int = 0
 
+'''Класс обрабатывает поток байтов, причем повторяющуюся строку заменяет ссылкой на предыдущую'''
 class Lzss:
     def __init__(self):
         self._buffer = [-1]*(BACKREF_LEN + LOOKAHEAD - 1)  # Циклический буфер
-        self._nodes = [None]*BACKREF_LEN
-        self._trees = [BST(self._buffer, LOOKAHEAD) for _ in range(256)]
-        self._last_match = 1
+        self._tree = BSTArray(self._buffer, LOOKAHEAD)
         self._left = 0
         self._right = LOOKAHEAD
         self._was_init = False
 
     def _delete_last_node(self):
-        if self._buffer[self._right] == -1:
-            return
-        self._trees[self._buffer[self._right]].delete(self._nodes[self._right])
-        self._nodes[self._right] = None
+        self._tree.delete(self._right)
 
     def _insert_next_node(self):
         if self._buffer[self._left] == -1:
             return (0,0)
-        match_len, index, node = self._trees[self._buffer[self._left]].insert(self._left)
-        self._nodes[self._left] = node
-        return match_len, index
+        return self._tree.insert(self._left)
     
     def _move_symbol(self, byte=None):
         self._delete_last_node()
