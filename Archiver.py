@@ -18,9 +18,11 @@ class Archiver:
     def create_archive(self, path_to):
         archive_path = path_to + '.archive'
         file = open(archive_path, 'wb')
+
         if os.path.isfile(path_to):
             self._write_archived_file(path_to, file)
             return archive_path
+        
         folders = [self._get_name(path_to)]
         for cur_dir, subfolders, files in os.walk(path_to):
             cur_folder = self._get_name(cur_dir)
@@ -32,6 +34,7 @@ class Archiver:
 
             for filename in files:
                 self._write_archived_file('\\'.join((cur_dir, filename)), file)
+                
         while folders:
             folders.pop()
             file.write(END_OF_BLOCK)
